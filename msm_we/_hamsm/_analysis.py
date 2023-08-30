@@ -184,11 +184,12 @@ class AnalysisMixin:
             elif N == max_iters - 1 and not last_flux == 0:
                 log.warning("Flux is nonzero and did not converge!")
 
+        print(np.where(last_pSS < 0))
+        self.pSS = last_pSS
         assert (last_pSS >= 0).all(), "Negative elements in pSS"
         assert last_flux >= 0, "Negative flux estimate from this pSS"
 
         log.debug("Done with steady-state estimation.")
-        self.pSS = last_pSS
 
     def get_steady_state_algebraic(
         self: "modelWE", max_iters=1000, check_negative=True, set=True

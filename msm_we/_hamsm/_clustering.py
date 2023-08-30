@@ -38,6 +38,9 @@ class ClusteringMixin:
     cluster_structures = None
     cluster_structure_weights = None
 
+    # additional attribute test for pcoord usage
+    pcoord_to_use = 0
+
     def do_clustering(self: "modelWE", arg):
 
         kmeans_model, iters_to_use, cluster_args, processCoordinates = arg
@@ -1566,7 +1569,18 @@ class ClusteringMixin:
                 pcoord_idxs = offset + idxs[0]
                 pcoord_indices.extend(pcoord_idxs)
                 offset += len(self.dtrajs[i])
+        
+            # DTY: ran into some indexing issues with certain pcoord indices
+            #log.warning(f"pre pcoord_indices: {pcoord_indices}")
+            #log.warning(f"pcoord_indices: {pcoord_indices[:-1]}")
+            #log.warning(f"pcoordSet: {self.pcoordSet}")
+            #log.warning(f"pcoordSet: {self.pcoordSet.shape}")
+            # try getting rid of any values larger than the pcoordSet shape (rows)
+            # otherwise these will throw an index error when passed to self.pcoordSet
+            pcoord_indices = [i for i in pcoord_indices if i < self.pcoordSet.shape[0]]
+            #log.warning(f"pcoord_indices: {pcoord_indices}")
 
+            # DTY TODO: check this for each pcoord dim?
             if len(self.pcoordSet[pcoord_indices, 0]) == 0:
                 target_bin_index = self.n_clusters + 1
 
@@ -1581,16 +1595,37 @@ class ClusteringMixin:
                 cluster_pcoord_all.append([None])
                 continue
 
+            # DTY: adjusted pcoordSet indexing to fill out all pcoord dims
+            #log.info(f"pcoordSet shape: {self.pcoordSet.shape}")
             cluster_pcoord_centers[cluster] = np.nanmean(
-                self.pcoordSet[pcoord_indices, 0], axis=0
+                self.pcoordSet[pcoord_indices, :], axis=0
             )
-            cluster_pcoord_range[cluster] = [
-                np.nanmin(self.pcoordSet[pcoord_indices, 0], axis=0),
-                np.nanmax(self.pcoordSet[pcoord_indices, 0], axis=0),
-            ]
-            cluster_pcoord_all[cluster] = self.pcoordSet[pcoord_indices, 0]
+            # cluster_pcoord_range is of shape (n_clusters, n_pcoords, 2)
+            # so each cluster index is of shape (n_pcoords, 2)
+            # example pcoordSet shape: (132922, 4)  
+            # rot90 to reshape into correct shape
+            pcoord_range_min_max = \
+                np.rot90(np.array([np.nanmax(self.pcoordSet[pcoord_indices, :], axis=0),
+                                   np.nanmin(self.pcoordSet[pcoord_indices, :], axis=0)
+                                   ]
+                                  ), k=-1)
+            #log.info(f"pcoord_range_min_max: {pcoord_range_min_max}")
+            #log.info(f"pcoord_range_min_max shape: {pcoord_range_min_max.shape}")
+            cluster_pcoord_range[cluster] = pcoord_range_min_max
+            cluster_pcoord_all[cluster] = self.pcoordSet[pcoord_indices, :]
+            # previous pcoord indexing of pcoord 0
+#            cluster_pcoord_centers[cluster] = np.nanmean(
+#                self.pcoordSet[pcoord_indices, 0], axis=0
+#            )
+#            cluster_pcoord_range[cluster] = [
+#                np.nanmin(self.pcoordSet[pcoord_indices, 0], axis=0),
+#                np.nanmax(self.pcoordSet[pcoord_indices, 0], axis=0),
+#            ]
+#            cluster_pcoord_all[cluster] = self.pcoordSet[pcoord_indices, 0]
 
-        pcoord_sort_indices = np.argsort(cluster_pcoord_centers[:, 0])
+
+        # DTY: sort by pcoord specification attribute (default = 0)
+        pcoord_sort_indices = np.argsort(cluster_pcoord_centers[:, self.pcoord_to_use])
 
         self.targetRMSD_centers = cluster_pcoord_centers[pcoord_sort_indices]
         self.targetRMSD_minmax = cluster_pcoord_range[pcoord_sort_indices]
@@ -1601,11 +1636,26 @@ class ClusteringMixin:
     def update_sorted_cluster_centers(self):
 
         # Todo: Don't assume these will always be sorted by pcoord 0
-        log.info("Note: Sorting bins, assuming that pcoord 0 is meaningful for sorting")
-        bin_centers = self.targetRMSD_centers[:, 0]
-        bin_centers[self.indTargets] = self.target_bin_centers
-        bin_centers[self.indBasis] = self.basis_bin_centers
+        # DTY: replacing pcoord 0 with cluster class attribute
+        #      so user can update this during model building, maybe
+        #      it would be better to have this parameter set in model init?
+        #      this could then also be updated/replaced in _plotting.plot_flux
+        log.info(f"Note: Sorting bins, assuming that pcoord {self.pcoord_to_use} is meaningful for sorting")
+        bin_centers = self.targetRMSD_centers[:, self.pcoord_to_use]
+        #log.info(f"bin_centers shape: {bin_centers.shape}")
+        #log.info(f"indTargets: {self.indTargets}")
+        #log.info(f"target_bin_centers: {self.target_bin_centers}")
+        #log.info(f"indBasis: {self.indBasis}")
+        #log.info(f"basis_bin_centers: {self.basis_bin_centers}")
+        # Because bin_centers is indexed by 0 (pcoord 0)
+        # it should make sense to grab pcoord 0 of the target and basis bin_centers 
+        bin_centers[self.indTargets] = self.target_bin_centers[self.pcoord_to_use]
+        bin_centers[self.indBasis] = self.basis_bin_centers[self.pcoord_to_use]
+        #bin_centers[self.indTargets] = self.target_bin_centers
+        #bin_centers[self.indBasis] = self.basis_bin_centers
 
         # All centers includes target/basis
         self.all_centers = bin_centers
         self.sorted_centers = np.argsort(bin_centers)
+
+

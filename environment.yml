@@ -1,4 +1,4 @@
-name: hamsm_env
+name: hamsm
 channels:
   - conda-forge
   - defaults

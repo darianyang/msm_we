@@ -23,7 +23,7 @@ requirements = [
     "rich",
     "toml",
     "matplotlib",
-    "deeptime",
+    #"deeptime",
 ]
 
 setup_requirements = [

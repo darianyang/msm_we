@@ -316,8 +316,14 @@ class PlottingMixin:
             J = _model.J / _model.tau
 
             binCenters = _model.targetRMSD_centers[:, pcoord_to_use]
-            binCenters[_model.indTargets] = _model.target_bin_centers
-            binCenters[_model.indBasis] = _model.basis_bin_centers
+            # DTY: adjusting this to use specified pcoord for target and basis bin centers
+            #log.info(f"pcoord_to_use: {pcoord_to_use}")
+            #log.info(f"target_bin_centers: {_model.target_bin_centers}")
+            binCenters[_model.indTargets] = _model.target_bin_centers[pcoord_to_use]
+            binCenters[_model.indBasis] = _model.basis_bin_centers[pcoord_to_use]
+            # previous code
+            #binCenters[_model.indTargets] = _model.target_bin_centers
+            #binCenters[_model.indBasis] = _model.basis_bin_centers
 
             indPlus = np.where(J > 0.0)
             indMinus = np.where(J < 0.0)
@@ -418,22 +424,23 @@ class PlottingMixin:
             "This suggests restarting may have driven the system past its true steady-state. "
             "This WE run should be continued without restarting, and allowed to relax. "
         )
-        ax.text(
-            0.5,
-            -0.25,
-            "WARNING: Possible flux overcorrection! WE should be continued without restarting now.",
-            ha="center",
-            va="center",
-            transform=ax.transAxes,
-            weight="bold",
-        )
+#        ax.text(
+#            0.5,
+#            -0.25,
+#            "WARNING: Possible flux overcorrection! WE should be continued without restarting now.",
+#            ha="center",
+#            va="center",
+#            transform=ax.transAxes,
+#            weight="bold",
+#        )
 
     def plot_committor(self: "modelWE"):
         fig = plt.figure(figsize=(8, 6))
-        plt.scatter(self.targetRMSD_centers[:, 0], self.q, s=15, c="black")
+        # DTY: updated from pcoord 0 to self.pcoord_to_use
+        plt.scatter(self.targetRMSD_centers[:, self.pcoord_to_use], self.q, s=15, c="black")
         plt.yscale("log")
         plt.ylabel("Pseudocommittor to target", fontsize=12)
-        plt.xlabel("Average microstate pcoord", fontsize=12)
+        plt.xlabel(f"Average microstate pcoord {self.pcoord_to_use}", fontsize=12)
 
         self.print_pseudocommittor_warning()
 
